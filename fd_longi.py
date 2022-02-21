@@ -48,7 +48,7 @@ V = 120.0
 Kdx = np.zeros(5)
 Kdm = np.zeros(5)
 # retour en q sur la profondeur
-Kdm[3] = 1
+Kdm[3] = 0
 KBF = [Kdx, Kdm]
 
 
@@ -57,7 +57,7 @@ ddx = 0
 ddm = -2/57.3 #rad
 du = [ddx, ddm]
 
-Tf = 20 #secondes
+Tf = 120 #secondes
 
 
 #functions
