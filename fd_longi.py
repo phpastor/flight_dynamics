@@ -6,6 +6,7 @@ import numpy as np
 from scipy.integrate import solve_ivp
 from scipy.optimize import fsolve
 
+
 # Concorde Data
 rho0 = 1.225
 g = 9.81
@@ -37,8 +38,30 @@ V0 = 1
 Lf = 0  
 Mf = 1
 
+
+# Trim de l'avion
+alt = 1524.0
+V = 120.0
+
+
+# Matrice de retour d'état
+Kdx = np.zeros(5)
+Kdm = np.zeros(5)
+# retour en q sur la profondeur
+Kdm[3] = 1
+KBF = [Kdx, Kdm]
+
+
+# Paramètres de Simulation longi 
+ddx = 0
+ddm = -2/57.3 #rad
+du = [ddx, ddm]
+
+Tf = 20 #secondes
+
+
 #functions
-def frho(alt):
+def atm(alt):
     if alt < 0:
         alt = 0
     if alt < 11000:
@@ -56,56 +79,42 @@ def FM(state):
     Cz = Cza*(alpha - alpha0) + Czdm*dm
     Cm = Cm0 + Cma*(alpha - alpha0) + Cmq*q*Lref/V + Cmdm*dm
     Cx = Cx0 + ki*Cz**2
-    rho, rho_h = frho(alt)
+    rho, rho_h = atm(alt)
     Pdyn = 0.5*rho*V*V
-    X = Pdyn*Sref*Cx
-    Z = Pdyn*Sref*Cz
-    M = Pdyn*Sref*Lref*Cm
     F = F0*((rho/rho0)**Mf)*((V0/V)**Lf)*dx
-    return [F, X, Z, M]
+    X = Pdyn*Sref*Cx + m*g*np.sin(gamma)
+    Z = Pdyn*Sref*Cz - m*g*np.cos(gamma)
+    M = Pdyn*Sref*Lref*Cm
+    return [F-X, Z, M]
 
 def deriv_longi(state):
     [V, gamma, alpha, q, alt, dx, dm] = state
-    [F, X, Z, M] = FM(state)
-    dv = (F - X)/m - g*np.sin(gamma)
-    dg = (Z - m*g)/(m*V)
+    [X, Z, M] = FM(state)
+    dv = X / m
+    dg = Z / (m * V)
     da = q - dg
-    dq = M/Iyy
-    dh = V*np.sin(gamma)
+    dq = M / Iyy
+    dh = V * np.sin(gamma)
     return [dv, dg, da, dq, dh]
 
 def trim_longi(V, alt):
+    gamma = 0.0
+    q = 0.0
     def Eq(X):
-        [gamma, alpha, q, dx, dm] = X
+        [alpha, dx, dm] = X
         state = [V, gamma, alpha, q, alt, dx, dm]
-        return deriv_longi(state)
-    Xinit = [0,0,0,0,0]
-    return fsolve(Eq, Xinit)
-
-def sys_longi(V, alt):
-    [gam, alpha, q, dx, dm] = trim_longi(V, alt)
-    state = [V, gam, alpha, q, alt] + [dx, dm]
-    dEq = []
-    for i in range(7):
-        h = 0.01
-        st = state.copy()
-        st[i] = state[i] + h
-        dEqp = deriv_longi(st)
-        st = state.copy()
-        st[i] = state[i] - h
-        dEqm = deriv_longi(st)
-        dEq.append([(dEqp[j]-dEqm[j])/(2*h) for j in range(5)])
-        sys = np.array(dEq).T
-        Asys = sys[:,0:5]
-        Bsys = sys[:,5:7]
-    return [Asys, Bsys]
+        dl = deriv_longi(state)
+        return [dl[0], dl[1], dl[3]]
+    Xinit = [0,0,0]
+    trim = fsolve(Eq, Xinit)
+    return trim
 
 def lin_longi(V, alt):
-    [gam, alpha, q, dx, dm] = trim_longi(V, alt)
+    [alpha, dx, dm] = trim_longi(V, alt)
     Cz = Cza*(alpha - alpha0) + Czdm*dm
     Cx = Cx0 + ki*Cz**2
     finesse = Cz/Cx
-    rho, rho_h = frho(alt)
+    rho, rho_h = atm(alt)
     
     A = np.zeros((5,5))
     A[0,0] = (Lf-2)*g/(V*finesse)
@@ -153,25 +162,23 @@ def lin_longi(V, alt):
 
     B[4,0] = 0
     B[4,1] = 0
-    
     return [A, B]
 
 def sim_longi(V, h, ddu, KBF, Tf):
     trim_sim = trim_longi(V, h)
     
-    g0 = trim_sim[0]
-    a0 = trim_sim[1]
-    q0 = trim_sim[2]
-    dx0 = trim_sim[3]
-    dm0 = trim_sim[4]
-    
+    a0 = trim_sim[0]
+    dx0 = trim_sim[1]
+    dm0 = trim_sim[2]
+    [Kdx, Kdm] = KBF
+
     def sd(t,y):
         dx = dx0 + ddu[0] + np.dot(Kdx,y)
         dm = dm0 + ddu[1] + np.dot(Kdm,y)
         state = list(y) + [dx, dm]
         return deriv_longi(state)
     
-    y0 = [V, g0, a0, q0, h]
+    y0 = [V, 0, a0, 0, h]
     return solve_ivp(sd, [0, Tf], y0)
 
 def sim_syslin(A, B, du, K, Tf):
@@ -181,20 +188,16 @@ def sim_syslin(A, B, du, K, Tf):
     x0 = [0,0,0,0,0]
     return solve_ivp(sd, [0, Tf], x0)
 
-# Trim de l'avion
-alt = 1524.0
-V = 100.0
 
+rho, rho_h = atm(alt)
 trim1 = trim_longi(V, alt)
 
-rho, rho_h = frho(alt)
-
 print('\n Valeurs de trim à l\'équilibre \n')
+print(f'alpha = {trim1[0]*57.3:.3f} deg')
+print(f'Thrust = {trim1[1]*F0*rho/rho0/1000:.3f} kN')
+print(f'dx = {trim1[1]*100:.3f} %')
+print(f'dm = {trim1[2]*57.3:.3f} deg')
 
-print(f'alpha = {trim1[1]*57.3:.3f} deg')
-print(f'Thrust = {trim1[3]*F0*rho/rho0/1000:.3f} kN')
-print(f'dx = {trim1[3]*100:.3f} %')
-print(f'dm = {trim1[4]*57.3:.3f} deg')
 
 # Linéarisation et modes
 
@@ -217,7 +220,6 @@ def print_modes_longi(Asys):
 
     T3 = 1/abs(A[4])
     print(f'RAP : period = {T3:.3f} s')
-
     return []
 
 
@@ -225,25 +227,9 @@ def print_modes_longi(Asys):
 print('\n Modes en Boucle Ouverte \n')
 print_modes_longi(Alin)
 
-Kdx = np.zeros(5)
-Kdm = np.zeros(5)
-
-# retour en q sur la profondeur
-Kdm[3] = 0
-KBF = [Kdx, Kdm]
-
 AlinBF = Alin + np.dot(Blin,KBF)
 print('\n Modes en Boucle Fermée \n')
 print_modes_longi(AlinBF)
-
-
-
-# Simulation longi 
-ddx = 0
-ddm = -2/57.3 #rad
-du = [ddx, ddm]
-
-Tf = 20 #secondes
 
 
 # simulation non linéaire
@@ -251,7 +237,6 @@ sim = sim_longi(V, alt, du, KBF, Tf)
 
 # Simulation linéaire
 sim_lin = sim_syslin(Alin, Blin, du, KBF, Tf)
-
 
 # Affichage simulation
 fig, axs = plt.subplots(5, 1)
@@ -266,7 +251,7 @@ axs[1].set_ylabel('gamma')
 axs[1].grid(True)
 
 axs[2].plot(sim.t, sim.y[2])
-axs[2].plot(sim_lin.t, sim_lin.y[2]+trim1[1])
+axs[2].plot(sim_lin.t, sim_lin.y[2]+trim1[0])
 axs[2].set_ylabel('alpha')
 axs[2].grid(True)
 
@@ -283,6 +268,3 @@ axs[4].grid(True)
 axs[4].set_xlabel('time')
 
 plt.show()
-
-
-
