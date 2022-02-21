@@ -1,9 +1,10 @@
 
-import numpy as np
 import math
-from scipy.optimize import fsolve
-from scipy.integrate import solve_ivp
+
 import matplotlib.pyplot as plt
+import numpy as np
+from scipy.integrate import solve_ivp
+from scipy.optimize import fsolve
 
 # Concorde Data
 rho0 = 1.225
@@ -188,119 +189,100 @@ trim1 = trim_longi(V, alt)
 
 rho, rho_h = frho(alt)
 
-print('alpha = ', trim1[1]*57.3, 'deg')
-print('Thrust =', trim1[3]*F0*rho/rho0/1000, 'kN')
-print('dx =', trim1[3]*100, '%')
-print('dm =', trim1[4]*57.3, 'deg')
+print('\n Valeurs de trim à l\'équilibre \n')
 
-
-#Simulation longi 
-ddx = 0
-ddm = -2/57.3 #rad
-du = [ddx,ddm]
-
-Kdx = np.zeros(5)
-Kdm = np.zeros(5)
-
-# retour en q sur la profondeur
-Kdm[3] = 1
-KBF = [Kdx, Kdm]
-
-Tf = 20 #secondes
-
-#simulation non linéaire
-sim = sim_longi(V, alt, du, KBF, Tf)
-
-# Affichage simulation
-fig, axs = plt.subplots(5, 1)
-axs[0].plot(sim.t, sim.y[0])
-axs[0].set_ylabel('spd')
-axs[0].grid(True)
-
-axs[1].plot(sim.t, sim.y[1])
-axs[1].set_ylabel('gamma')
-axs[1].grid(True)
-
-axs[2].plot(sim.t, sim.y[2])
-axs[2].set_ylabel('alpha')
-axs[2].grid(True)
-
-axs[3].plot(sim.t, sim.y[3])
-axs[3].set_ylabel('q')
-axs[3].grid(True)
-
-axs[4].plot(sim.t, sim.y[4])
-axs[4].set_ylabel('alt')
-axs[4].grid(True)
-axs[4].set_xlabel('time')
-
-plt.show()
-
+print(f'alpha = {trim1[1]*57.3:.3f} deg')
+print(f'Thrust = {trim1[3]*F0*rho/rho0/1000:.3f} kN')
+print(f'dx = {trim1[3]*100:.3f} %')
+print(f'dm = {trim1[4]*57.3:.3f} deg')
 
 # Linéarisation et modes
 
 def print_modes_longi(Asys):
     A = np.linalg.eig(Asys)[0]
-    print(A)
-    
+
     w0 = math.sqrt(abs(A[0]*A[1]))
     amort = abs(A[0]+A[1])/2
     amort1 = amort/w0
     wp = w0*math.sqrt(1-amort1**2)
     T = 2*math.pi/wp
-    print('SPO', 'period (s) =', T, 'amort =', amort1)
-    
+    print(f'SPO : period = {T:.3f} s, amort = {amort1:.3f}')
+
     w0 = math.sqrt(abs(A[2]*A[3]))
     amort = abs(A[2]+A[3])/2
     amort1 = amort/w0
     wp = w0*math.sqrt(1-amort1**2)
     T = 2*math.pi/wp
-    print('PHU', 'period (s) =', T, 'amort =', amort1)
-    
+    print(f'PHU : period = {T:.3f} s, amort = {amort1:.3f}')
+
     T3 = 1/abs(A[4])
-    print('RAP', 'period (s) =', T3)
+    print(f'RAP : period = {T3:.3f} s')
 
     return []
 
-[Asys, Bsys] = sys_longi(V, alt)
-print_modes_longi(Asys)
-
-AsysBF = Asys + np.dot(Bsys,KBF)
-print_modes_longi(AsysBF)
 
 [Alin, Blin] = lin_longi(V, alt)
+print('\n Modes en Boucle Ouverte \n')
 print_modes_longi(Alin)
 
+Kdx = np.zeros(5)
+Kdm = np.zeros(5)
+
+# retour en q sur la profondeur
+Kdm[3] = 0
+KBF = [Kdx, Kdm]
+
 AlinBF = Alin + np.dot(Blin,KBF)
+print('\n Modes en Boucle Fermée \n')
 print_modes_longi(AlinBF)
 
 
 
+# Simulation longi 
+ddx = 0
+ddm = -2/57.3 #rad
+du = [ddx, ddm]
+
+Tf = 20 #secondes
+
+
+# simulation non linéaire
+sim = sim_longi(V, alt, du, KBF, Tf)
+
 # Simulation linéaire
-sim = sim_syslin(Asys, Bsys, du, KBF, Tf)
+sim_lin = sim_syslin(Alin, Blin, du, KBF, Tf)
+
 
 # Affichage simulation
 fig, axs = plt.subplots(5, 1)
 axs[0].plot(sim.t, sim.y[0])
+axs[0].plot(sim_lin.t, sim_lin.y[0]+V)
 axs[0].set_ylabel('spd')
 axs[0].grid(True)
 
 axs[1].plot(sim.t, sim.y[1])
+axs[1].plot(sim_lin.t, sim_lin.y[1])
 axs[1].set_ylabel('gamma')
 axs[1].grid(True)
 
 axs[2].plot(sim.t, sim.y[2])
+axs[2].plot(sim_lin.t, sim_lin.y[2]+trim1[1])
 axs[2].set_ylabel('alpha')
 axs[2].grid(True)
 
 axs[3].plot(sim.t, sim.y[3])
+axs[3].plot(sim_lin.t, sim_lin.y[3])
 axs[3].set_ylabel('q')
 axs[3].grid(True)
 
 axs[4].plot(sim.t, sim.y[4])
+axs[4].plot(sim_lin.t, sim_lin.y[4]+alt)
 axs[4].set_ylabel('alt')
 axs[4].grid(True)
+
 axs[4].set_xlabel('time')
 
 plt.show()
+
+
 
