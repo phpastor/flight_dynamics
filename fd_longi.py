@@ -76,15 +76,18 @@ def atm(alt):
 
 def FM(state):
     [V, gamma, alpha, q, alt, dx, dm] = state
-    Cz = Cza*(alpha - alpha0) + Czdm*dm
-    Cm = Cm0 + Cma*(alpha - alpha0) + Cmq*q*Lref/V + Cmdm*dm
-    Cx = Cx0 + ki*Cz**2
+    Cz = Cza * (alpha - alpha0) + Czdm * dm
+    Cm = Cm0 + Cma * (alpha - alpha0) + Cmq * q*Lref/V + Cmdm * dm
+    Cx = Cx0 + ki * Cz**2
     rho, rho_h = atm(alt)
+
+    F = F0 * ((rho/rho0)**Mf) * ((V0/V)**Lf) * dx
+
     Pdyn = 0.5*rho*V*V
-    F = F0*((rho/rho0)**Mf)*((V0/V)**Lf)*dx
     X = Pdyn*Sref*Cx + m*g*np.sin(gamma)
     Z = Pdyn*Sref*Cz - m*g*np.cos(gamma)
     M = Pdyn*Sref*Lref*Cm
+    
     return [F-X, Z, M]
 
 def deriv_longi(state):
@@ -235,33 +238,25 @@ print_modes_longi(AlinBF)
 # simulation non linéaire
 sim = sim_longi(V, alt, du, KBF, Tf)
 
-# Simulation linéaire
-sim_lin = sim_syslin(Alin, Blin, du, KBF, Tf)
-
 # Affichage simulation
 fig, axs = plt.subplots(5, 1)
 axs[0].plot(sim.t, sim.y[0])
-axs[0].plot(sim_lin.t, sim_lin.y[0]+V)
 axs[0].set_ylabel('spd')
 axs[0].grid(True)
 
 axs[1].plot(sim.t, sim.y[1])
-axs[1].plot(sim_lin.t, sim_lin.y[1])
 axs[1].set_ylabel('gamma')
 axs[1].grid(True)
 
 axs[2].plot(sim.t, sim.y[2])
-axs[2].plot(sim_lin.t, sim_lin.y[2]+trim1[0])
 axs[2].set_ylabel('alpha')
 axs[2].grid(True)
 
 axs[3].plot(sim.t, sim.y[3])
-axs[3].plot(sim_lin.t, sim_lin.y[3])
 axs[3].set_ylabel('q')
 axs[3].grid(True)
 
 axs[4].plot(sim.t, sim.y[4])
-axs[4].plot(sim_lin.t, sim_lin.y[4]+alt)
 axs[4].set_ylabel('alt')
 axs[4].grid(True)
 
