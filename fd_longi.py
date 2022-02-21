@@ -10,6 +10,8 @@ from scipy.optimize import fsolve
 # Concorde Data
 rho0 = 1.225
 g = 9.81
+rad2deg = 180/np.pi
+deg2rad = 1/rad2deg
 
 m = 120000.0    #kg
 Sref = 360.0    #m²
@@ -54,7 +56,7 @@ KBF = [Kdx, Kdm]
 
 # Paramètres de Simulation longi 
 ddx = 0
-ddm = -2/57.3 #rad
+ddm = -2 * deg2rad #rad
 du = [ddx, ddm]
 
 Tf = 120 #secondes
@@ -196,10 +198,10 @@ rho, rho_h = atm(alt)
 trim1 = trim_longi(V, alt)
 
 print('\n Valeurs de trim à l\'équilibre \n')
-print(f'alpha = {trim1[0]*57.3:.3f} deg')
+print(f'alpha = {trim1[0]*rad2deg:.3f} deg')
 print(f'Thrust = {trim1[1]*F0*rho/rho0/1000:.3f} kN')
 print(f'dx = {trim1[1]*100:.3f} %')
-print(f'dm = {trim1[2]*57.3:.3f} deg')
+print(f'dm = {trim1[2]*rad2deg:.3f} deg')
 
 
 # Linéarisation et modes
